@@ -30,7 +30,13 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [comidasHoy, setComidasHoy] = useState(0);
   const [fechaFiltro, setFechaFiltro] = useState(new Date());
-  const [darkMode, setDarkMode] = useState(true);
+  
+  // --- CORRECCIÓN MODO OSCURO (AQUÍ ESTÁ EL ARREGLO) ---
+  const [darkMode, setDarkMode] = useState(() => {
+    // Leemos la memoria del navegador. Si dice 'light', empezamos en claro. Si no, oscuro.
+    return localStorage.getItem('theme') === 'light' ? false : true;
+  });
+
   const [usuarioFamilia, setUsuarioFamilia] = useState(localStorage.getItem('michiUser') || null);
   
   // ESTADOS MODALES Y DATOS
@@ -41,7 +47,7 @@ function App() {
   // ESTADO ARENERO
   const [estadoArenero, setEstadoArenero] = useState({ 
     texto: '...', 
-    color: 'bg-slate-100 text-slate-400', 
+    color: 'bg-white border-slate-200 text-slate-400', 
     icono: <Sparkles size={24} /> 
   });
 
@@ -61,14 +67,13 @@ function App() {
   const getProfileHeaderIcon = () => {
     const size = 20;
     const stroke = 2;
-    // Usamos "currentColor" para que el icono tome el color del texto del botón
     if (usuarioFamilia === 'Matias') return <Briefcase size={size} strokeWidth={stroke} className="text-current" />;
     if (usuarioFamilia === 'Cecilia') return <Heart size={size} strokeWidth={stroke} className="text-current" />;
     if (usuarioFamilia === 'Javiera') return <Cat size={size} strokeWidth={stroke} className="text-current" />;
     return null;
   };
 
-  // --- NUEVO HELPER: ESTILOS DE COLOR PARA EL BOTÓN DEL HEADER ---
+  // --- HELPER: ESTILOS DE COLOR PARA EL BOTÓN DEL HEADER ---
   const getProfileHeaderStyles = () => {
     const baseStyle = "p-3 rounded-2xl shadow-sm border transition-all duration-300 group relative flex items-center gap-2 overflow-hidden hover:shadow-md hover:-translate-y-0.5";
     
@@ -85,12 +90,26 @@ function App() {
   };
 
   // --- EFECTOS ---
+  
+  // 1. EFECTO MODO OSCURO: Aplica la clase al HTML cuando cambias el estado
+  useEffect(() => {
+    if (darkMode) {
+      document.documentElement.classList.add('dark');
+      localStorage.setItem('theme', 'dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      localStorage.setItem('theme', 'light');
+    }
+  }, [darkMode]);
+
+  // 2. EFECTO DE SESIÓN
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => { setSession(session) })
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { setSession(session) })
     return () => subscription.unsubscribe()
   }, [])
 
+  // 3. EFECTO DE DATOS
   useEffect(() => { if (session) fetchData(); }, [session]); 
 
   // --- CARGA DE DATOS ---
@@ -159,43 +178,33 @@ function App() {
 
   const recalcularEstadoArenero = (listaRegistros) => {
     const eventosArenero = listaRegistros.filter(r => r.tipo === 'Arenero');
-    
     if (eventosArenero.length > 0) {
       const ultima = eventosArenero[0].rawDate;
       const horas = (new Date() - ultima) / (1000 * 60 * 60);
       
-      // ESTILO BASE UNIFICADO: Fondo blanco/oscuro como las demás tarjetas
       const baseCard = "bg-white dark:bg-slate-800 shadow-sm border";
 
       if (horas < 24) {
         setEstadoArenero({ 
           texto: 'IMPECABLE', 
-          // 1. ESTADO OPTIMO: Usamos INDIGO (Tu color de marca) en vez de verde
-          // Se ve limpio, "royal" y combina con el resto de la UI.
           color: `${baseCard} border-indigo-100 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400`,
           icono: <Sparkles className="text-indigo-500" size={32} />
         });
       } else if (horas < 48) {
         setEstadoArenero({ 
           texto: 'LIMPIO', 
-          // 2. ESTADO MEDIO: Usamos SLATE (Gris Azulado)
           color: `${baseCard} border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400`,
           icono: <Sparkles className="text-slate-400" size={32} />
         });
       } else {
         setEstadoArenero({ 
           texto: 'LIMPIAR!', 
-          // 3. ESTADO ALERTA: Usamos ROSE (Rosado/Rojo suave)
           color: `${baseCard} border-rose-100 dark:border-rose-900/30 text-rose-500 dark:text-rose-400 animate-pulse`,
           icono: <Trash2 className="text-rose-500" size={32} />
         });
       }
     } else {
-      setEstadoArenero({ 
-        texto: 'SIN DATOS', 
-        color: 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400', 
-        icono: <Sparkles className="text-slate-300" /> 
-      });
+      setEstadoArenero({ texto: 'SIN DATOS', color: 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400', icono: <Sparkles className="text-slate-300" /> });
     }
   };
 
@@ -327,6 +336,7 @@ function App() {
           <div className="text-center space-y-4 mb-12 animate-fade-in-up flex flex-col items-center">
             <div className="relative group cursor-default">
                 <div className="absolute -inset-4 bg-orange-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                {/* GATO NARANJA AESTHETIC */}
                 <Cat size={80} strokeWidth={1.5} className="text-orange-400 dark:text-orange-400 drop-shadow-lg transform transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6" fill="rgba(251, 146, 60, 0.2)" />
                 <div className="absolute -top-2 -right-4 animate-bounce">
                    <Sparkles size={24} className="text-yellow-400" fill="currentColor" />
@@ -339,7 +349,7 @@ function App() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
-            {/* MATIAS - Maletín */}
+            {/* MATIAS */}
             <button onClick={() => { setUsuarioFamilia('Matias'); localStorage.setItem('michiUser', 'Matias'); }} className="group relative overflow-hidden bg-white dark:bg-slate-800/80 dark:bg-gradient-to-br dark:from-slate-800 dark:to-indigo-900/60 p-8 rounded-[2rem] shadow-xl border border-slate-100 dark:border-indigo-700/50 hover:shadow-2xl hover:border-indigo-500 dark:hover:border-indigo-400 transition-all duration-300 hover:-translate-y-2 hover:shadow-indigo-500/20">
               <div className="flex flex-col items-center gap-4 relative z-10">
                 <div className="w-24 h-24 bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-100 dark:border-indigo-500/30 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300 shadow-inner grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 text-indigo-500">
@@ -349,7 +359,7 @@ function App() {
                 <span className="text-xs font-bold tracking-widest text-slate-400 dark:text-indigo-300/80 uppercase bg-slate-100 dark:bg-slate-900/50 px-3 py-1 rounded-full border border-slate-200 dark:border-indigo-500/30">Admin</span>
               </div>
             </button>
-            {/* CECILIA - Corazón */}
+            {/* CECILIA */}
             <button onClick={() => { setUsuarioFamilia('Cecilia'); localStorage.setItem('michiUser', 'Cecilia'); }} className="group relative overflow-hidden bg-white dark:bg-slate-800/80 dark:bg-gradient-to-br dark:from-slate-800 dark:to-pink-900/60 p-8 rounded-[2rem] shadow-xl border border-slate-100 dark:border-pink-700/50 hover:shadow-2xl hover:border-pink-500 dark:hover:border-pink-400 transition-all duration-300 hover:-translate-y-2 hover:shadow-pink-500/20">
               <div className="flex flex-col items-center gap-4 relative z-10">
                 <div className="w-24 h-24 bg-pink-50 dark:bg-pink-500/20 border border-pink-100 dark:border-pink-500/30 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300 shadow-inner grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 text-pink-500">
@@ -359,7 +369,7 @@ function App() {
                 <span className="text-xs font-bold tracking-widest text-slate-400 dark:text-pink-300/80 uppercase bg-slate-100 dark:bg-slate-900/50 px-3 py-1 rounded-full border border-slate-200 dark:border-pink-500/30">Karen Suprema</span>
               </div>
             </button>
-            {/* JAVIERA - Gato */}
+            {/* JAVIERA */}
             <button onClick={() => { setUsuarioFamilia('Javiera'); localStorage.setItem('michiUser', 'Javiera'); }} className="group relative overflow-hidden bg-white dark:bg-slate-800/80 dark:bg-gradient-to-br dark:from-slate-800 dark:to-emerald-900/60 p-8 rounded-[2rem] shadow-xl border border-slate-100 dark:border-emerald-700/50 hover:shadow-2xl hover:border-emerald-500 dark:hover:border-emerald-400 transition-all duration-300 hover:-translate-y-2 hover:shadow-emerald-500/20">
               <div className="flex flex-col items-center gap-4 relative z-10">
                 <div className="w-24 h-24 bg-emerald-50 dark:bg-emerald-500/20 border border-emerald-100 dark:border-emerald-500/30 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300 shadow-inner grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 text-emerald-500">
@@ -402,10 +412,9 @@ function App() {
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
             
-            {/* --- BOTÓN DE PERFIL HEADER CON "COLORINES" --- */}
+            {/* BOTÓN DE PERFIL CON ESTILOS DINÁMICOS */}
             <button 
               onClick={() => { setUsuarioFamilia(null); localStorage.removeItem('michiUser'); }} 
-              // AQUI USAMOS LA NUEVA FUNCIÓN DE ESTILOS
               className={getProfileHeaderStyles()} 
               title={`Perfil actual: ${usuarioFamilia}. Click para cambiar.`}
             >
@@ -462,6 +471,7 @@ function App() {
               </div>
             </div>
 
+            {/* ESTADO ARENERO (DISEÑO LIMPIO / NO VERDE) */}
             <div className={`p-5 rounded-3xl shadow-sm border flex flex-col items-center justify-center transition-all ${estadoArenero.color}`}>
                   <div className="flex items-center gap-3">
                     <span className="grayscale">{estadoArenero.icono}</span>
