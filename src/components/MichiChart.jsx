@@ -45,7 +45,7 @@ function MichiChart({ registros }) {
         Tendencia Semanal
       </h3>
       
-      <div className="h-32 w-full">
+      <div className="h-64 w-full mt-4">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={datosUltimaSemana}>
             <XAxis 
