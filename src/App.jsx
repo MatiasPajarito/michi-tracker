@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
-import { Trash2, Moon, Sun, ShoppingBag, LogOut } from 'lucide-react'
+// Importamos todos los iconos necesarios
+import { Trash2, Moon, Sun, ShoppingBag, LogOut, Cookie, Beef, Candy, Sparkles, Utensils, Shovel, Briefcase, Heart, Cat } from 'lucide-react'
 import { Toaster, toast } from 'sonner' 
-import Login from './Login' // <--- Asegúrate de tener este archivo creado
+import Login from './Login' 
 import BotonGato from './components/BotonGato'
 import CalendarioMichi from './components/CalendarioMichi'
 import MichiChart from './components/MichiChart'
@@ -12,16 +13,25 @@ import ModalInventario from './components/ModalInventario'
 function App() {
   // 1. ESTADO DE LA SESIÓN
   const [session, setSession] = useState(null)
+  
   const cerrarSesion = async () => {
-      await supabase.auth.signOut();
+      localStorage.removeItem('michiUser'); 
+      setUsuarioFamilia(null);
+      setSession(null); 
       toast.success("Sesión cerrada correctamente 👋");
-      setSession(null); // Esto fuerza la actualización visual inmediata
+      try {
+          await supabase.auth.signOut(); 
+      } catch (error) {
+          console.log("Cierre técnico en segundo plano terminó");
+      }
   };
+
   const [registros, setRegistros] = useState([]);
   const [loading, setLoading] = useState(true);
   const [comidasHoy, setComidasHoy] = useState(0);
   const [fechaFiltro, setFechaFiltro] = useState(new Date());
   const [darkMode, setDarkMode] = useState(true);
+  const [usuarioFamilia, setUsuarioFamilia] = useState(localStorage.getItem('michiUser') || null);
   
   // ESTADOS MODALES Y DATOS
   const [modalComidaAbierto, setModalComidaAbierto] = useState(false);
@@ -32,36 +42,58 @@ function App() {
   const [estadoArenero, setEstadoArenero] = useState({ 
     texto: '...', 
     color: 'bg-slate-100 text-slate-400', 
-    icono: '⏳' 
+    icono: <Sparkles size={24} /> 
   });
 
-  // --- EFECTO 1: EL VIGILANTE (Autenticación) ---
-  // Este bloque se ejecuta una sola vez al abrir la app para ver si hay usuario
+  // --- HELPER PARA ICONOS DE HISTORIAL ---
+  const getIcono = (tipo, subtipo) => {
+    const claseIcono = "text-slate-400 dark:text-slate-500"; 
+    const size = 20;
+    if (tipo === 'Arenero') return <Sparkles size={size} className={claseIcono} />;
+    const t = (subtipo || '').toLowerCase();
+    if (t.includes('pellet') || t.includes('seca')) return <Cookie size={size} className={claseIcono} />;
+    if (t.includes('húmeda') || t.includes('humeda')) return <Beef size={size} className={claseIcono} />;
+    if (t.includes('churu')) return <Candy size={size} className={claseIcono} />;
+    return <Cookie size={size} className={claseIcono} />;
+  };
+
+  // --- HELPER PARA EL ICONO DEL HEADER ---
+  const getProfileHeaderIcon = () => {
+    const size = 20;
+    const stroke = 2;
+    // Usamos "currentColor" para que el icono tome el color del texto del botón
+    if (usuarioFamilia === 'Matias') return <Briefcase size={size} strokeWidth={stroke} className="text-current" />;
+    if (usuarioFamilia === 'Cecilia') return <Heart size={size} strokeWidth={stroke} className="text-current" />;
+    if (usuarioFamilia === 'Javiera') return <Cat size={size} strokeWidth={stroke} className="text-current" />;
+    return null;
+  };
+
+  // --- NUEVO HELPER: ESTILOS DE COLOR PARA EL BOTÓN DEL HEADER ---
+  const getProfileHeaderStyles = () => {
+    const baseStyle = "p-3 rounded-2xl shadow-sm border transition-all duration-300 group relative flex items-center gap-2 overflow-hidden hover:shadow-md hover:-translate-y-0.5";
+    
+    switch (usuarioFamilia) {
+      case 'Matias': // Indigo Theme
+        return `${baseStyle} bg-indigo-50 border-indigo-200 text-indigo-700 hover:shadow-indigo-500/20 dark:bg-indigo-950/40 dark:border-indigo-500/50 dark:text-indigo-200 dark:hover:border-indigo-400 dark:hover:shadow-indigo-500/30`;
+      case 'Cecilia': // Pink Theme
+        return `${baseStyle} bg-pink-50 border-pink-200 text-pink-700 hover:shadow-pink-500/20 dark:bg-pink-950/40 dark:border-pink-500/50 dark:text-pink-200 dark:hover:border-pink-400 dark:hover:shadow-pink-500/30`;
+      case 'Javiera': // Emerald Theme
+        return `${baseStyle} bg-emerald-50 border-emerald-200 text-emerald-700 hover:shadow-emerald-500/20 dark:bg-emerald-950/40 dark:border-emerald-500/50 dark:text-emerald-200 dark:hover:border-emerald-400 dark:hover:shadow-emerald-500/30`;
+      default:
+        return `${baseStyle} bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300`;
+    }
+  };
+
+  // --- EFECTOS ---
   useEffect(() => {
-    // Revisar si ya había una sesión guardada en el navegador
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-    })
-
-    // Suscribirse a cambios (si te logueas o deslogueas)
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session)
-    })
-
+    supabase.auth.getSession().then(({ data: { session } }) => { setSession(session) })
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => { setSession(session) })
     return () => subscription.unsubscribe()
   }, [])
 
-  // --- EFECTO 2: EL CARGADOR DE DATOS ---
-  // Este es el que ya tenías, pero le agregamos una condición
-  useEffect(() => {
-    // SOLO cargamos datos si existe una 'session'
-    if (session) {
-        fetchData();
-    }
-  }, [session]); // <--- Se vuelve a ejecutar si la 'session' cambia
+  useEffect(() => { if (session) fetchData(); }, [session]); 
 
+  // --- CARGA DE DATOS ---
   const fetchData = async () => {
     setLoading(true);
     const { data: comidas } = await supabase.from('comidas').select('*').order('timestamp', { ascending: false }).limit(50);
@@ -70,19 +102,32 @@ function App() {
     
     if (datosInventario) setInventario(datosInventario);
 
-    // --- LOGICA EMOJIS ---
     const listaComidas = (comidas || []).map(c => {
-      let emoji = '🍪';
       let nombre = 'Pellet';
+      let itemInv = datosInventario?.find(i => i.tipo === c.tipo_comida) || datosInventario?.find(i => i.tipo === 'seca'); 
       
-      if (c.tipo_comida === 'humeda') { emoji = '🥫'; nombre = 'Húmeda'; }
-      if (c.tipo_comida === 'churu') { emoji = '🍬'; nombre = 'Churu'; }
+      if (c.tipo_comida === 'Húmeda' || c.tipo_comida === 'humeda') { nombre = 'Húmeda'; itemInv = datosInventario?.find(i => i.tipo === 'humeda'); }
+      if (c.tipo_comida === 'Churu' || c.tipo_comida === 'churu') { nombre = 'Churu'; itemInv = datosInventario?.find(i => i.tipo === 'churu'); }
+
+      let detalleCantidad = c.porcion || '1 un';
+      if (nombre === 'Pellet' && itemInv) { 
+          const base = itemInv.tamano_porcion; 
+          let g = base;
+          if (c.porcion === 'Media') g = Math.round(base * 0.5);
+          if (c.porcion === 'Doble') g = base * 2;
+          detalleCantidad = `${c.porcion} (${g}g)`;
+      } else {
+          let un = 1;
+          if (c.porcion === 'Media') un = 0.5;
+          if (c.porcion === 'Doble') un = 2;
+          detalleCantidad = `${c.porcion} (${un} un)`;
+      }
 
       return {
         id: `c-${c.id}`,
         tipo: 'Comida',
         rawTipo: c.tipo_comida,
-        detalle: `${emoji} ${nombre} (${c.porcion || '1 un'})`, 
+        detalle: `${nombre} • ${detalleCantidad} ${c.usuarioFamilia ? `• ${c.usuarioFamilia}` : ''}`, 
         fecha: new Date(c.timestamp).toLocaleString('es-CL'),
         rawDate: new Date(c.timestamp)
       };
@@ -91,7 +136,7 @@ function App() {
     const listaArenero = (arenero || []).map(a => ({
       id: `a-${a.id}`,
       tipo: 'Arenero',
-      detalle: a.type === 'total' ? 'Profunda' : 'Rápida',
+      detalle: `${a.type === 'total' ? 'Profunda' : 'Rápida'} ${a.usuarioFamilia ? `• ${a.usuarioFamilia}` : ''}`,
       fecha: new Date(a.timestamp).toLocaleString('es-CL'),
       rawDate: new Date(a.timestamp)
     }));
@@ -119,36 +164,52 @@ function App() {
       const ultima = eventosArenero[0].rawDate;
       const horas = (new Date() - ultima) / (1000 * 60 * 60);
       
+      // ESTILO BASE UNIFICADO: Fondo blanco/oscuro como las demás tarjetas
+      const baseCard = "bg-white dark:bg-slate-800 shadow-sm border";
+
       if (horas < 24) {
         setEstadoArenero({ 
           texto: 'IMPECABLE', 
-          color: 'bg-emerald-50 text-emerald-600 border-emerald-200 dark:bg-emerald-900/20 dark:text-emerald-400 dark:border-emerald-800',
-          icono: '✨'
+          // 1. ESTADO OPTIMO: Usamos INDIGO (Tu color de marca) en vez de verde
+          // Se ve limpio, "royal" y combina con el resto de la UI.
+          color: `${baseCard} border-indigo-100 dark:border-indigo-500/30 text-indigo-600 dark:text-indigo-400`,
+          icono: <Sparkles className="text-indigo-500" size={32} />
         });
       } else if (horas < 48) {
         setEstadoArenero({ 
           texto: 'LIMPIO', 
-          color: 'bg-blue-50 text-blue-600 border-blue-200 dark:bg-blue-900/20 dark:text-blue-400 dark:border-blue-800',
-          icono: '👌'
+          // 2. ESTADO MEDIO: Usamos SLATE (Gris Azulado)
+          color: `${baseCard} border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400`,
+          icono: <Sparkles className="text-slate-400" size={32} />
         });
       } else {
         setEstadoArenero({ 
           texto: 'LIMPIAR!', 
-          color: 'bg-red-50 text-red-600 border-red-200 dark:bg-red-900/20 dark:text-red-400 dark:border-red-800 animate-pulse',
-          icono: '💩'
+          // 3. ESTADO ALERTA: Usamos ROSE (Rosado/Rojo suave)
+          color: `${baseCard} border-rose-100 dark:border-rose-900/30 text-rose-500 dark:text-rose-400 animate-pulse`,
+          icono: <Trash2 className="text-rose-500" size={32} />
         });
       }
     } else {
-      setEstadoArenero({ texto: 'SIN DATOS', color: 'bg-slate-50 text-slate-400', icono: '❔' });
+      setEstadoArenero({ 
+        texto: 'SIN DATOS', 
+        color: 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-400', 
+        icono: <Sparkles className="text-slate-300" /> 
+      });
     }
   };
 
+  // --- FUNCIONES DE ACCIÓN (Confirmar, Borrar) ---
   const confirmarComida = async (tipoElegido, porcionElegida) => {
     setModalComidaAbierto(false); 
-    
-    const itemInventario = inventario.find(i => i.tipo && i.tipo.toLowerCase() === tipoElegido.toLowerCase());
-    
+    let tipoNormalizado = 'seca';
+    if (tipoElegido === 'Húmeda' || tipoElegido === 'humeda') tipoNormalizado = 'humeda';
+    if (tipoElegido === 'Churu' || tipoElegido === 'churu') tipoNormalizado = 'churu';
+
+    const itemInventario = inventario.find(i => i.tipo === tipoNormalizado);
     let descuento = 0;
+    let textoVisual = '...';
+
     if (itemInventario) {
       const base = itemInventario.tamano_porcion; 
       if (porcionElegida === 'Media') descuento = base * 0.5;
@@ -156,35 +217,49 @@ function App() {
       else descuento = base; 
     }
 
+    if (tipoNormalizado === 'seca') {
+        textoVisual = `${porcionElegida} (${Math.round(descuento)}g)`;
+    } else {
+        let un = 1;
+        if (porcionElegida === 'Media') un = 0.5;
+        if (porcionElegida === 'Doble') un = 2;
+        textoVisual = `${porcionElegida} (${un} un)`;
+    }
+
+    const nuevoRegistroFalso = {
+      id: `temp-${Date.now()}`,
+      tipo: 'Comida',
+      rawTipo: tipoElegido,
+      detalle: `${tipoElegido === 'Húmeda' ? 'Húmeda' : tipoElegido === 'Churu' ? 'Churu' : 'Pellet'} • ${textoVisual} • ${usuarioFamilia}`,
+      fecha: new Date().toLocaleString('es-CL'),
+      rawDate: new Date(),
+      usuarioFamilia: usuarioFamilia
+    };
+
+    setRegistros(prev => [nuevoRegistroFalso, ...prev]);
+    setComidasHoy(prev => prev + 1); 
+    toast.success('Comida registrada (Sincronizando...)');
+
     try {
       const { error: insertError } = await supabase.from('comidas').insert([{ 
         cat_name: 'Ambas', 
         amount: 'Normal', 
         tipo_comida: tipoElegido, 
-        porcion: porcionElegida 
+        porcion: porcionElegida,
+        usuarioFamilia: usuarioFamilia 
       }]);
-      
       if (insertError) throw insertError;
 
       if (itemInventario) {
         const nuevoStock = Math.max(0, itemInventario.stock_actual - descuento);
-        
-        const { error: updateError } = await supabase.from('inventario')
-             .update({ stock_actual: nuevoStock })
-             .eq('tipo', itemInventario.tipo);
-            
+        const { error: updateError } = await supabase.from('inventario').update({ stock_actual: nuevoStock }).eq('tipo', itemInventario.tipo);
         if (updateError) throw updateError;
-
-        if (nuevoStock <= itemInventario.stock_minimo) {
-            toast.error(`⚠️ STOCK BAJO: Quedan ${nuevoStock}g`);
-        }
+        setInventario(prev => prev.map(item => item.tipo === itemInventario.tipo ? { ...item, stock_actual: nuevoStock } : item));
       }
-
-      toast.success('Comida registrada y descontada');
-      setFechaFiltro(new Date());
       fetchData(); 
     } catch (e) { 
-      toast.error('Error al guardar: ' + e.message); 
+      toast.error('Error al guardar, deshaciendo cambios...'); 
+      fetchData(); 
     }
   };
 
@@ -195,7 +270,7 @@ function App() {
 
   const registrarArenero = async () => {
     try {
-      await supabase.from('arenero').insert([{ type: 'parcial', notes: 'Limpieza' }]);
+      await supabase.from('arenero').insert([{ type: 'parcial', notes: 'Limpieza', usuarioFamilia: usuarioFamilia }]);
       toast.success('Arenero registrado');
       setFechaFiltro(new Date());
       fetchData();
@@ -209,39 +284,24 @@ function App() {
         onClick: async () => {
            const idReal = id.split('-')[1];
            const tabla = tipo === 'Comida' ? 'comidas' : 'arenero';
-           
            try {
              if (tipo === 'Comida') {
-               const { data: registro } = await supabase
-                 .from('comidas')
-                 .select('*')
-                 .eq('id', idReal)
-                 .single();
-
+               const { data: registro } = await supabase.from('comidas').select('*').eq('id', idReal).single();
                if (registro && registro.tipo_comida) {
                  const itemInv = inventario.find(i => i.tipo === registro.tipo_comida);
-                 
                  if (itemInv) {
                    let cantidadDevolver = itemInv.tamano_porcion; 
                    if (registro.porcion === 'Media') cantidadDevolver = cantidadDevolver * 0.5;
                    else if (registro.porcion === 'Doble') cantidadDevolver = cantidadDevolver * 2;
-                   
-                   await supabase.from('inventario')
-                     .update({ stock_actual: itemInv.stock_actual + cantidadDevolver })
-                     .eq('tipo', registro.tipo_comida);
-                     
+                   await supabase.from('inventario').update({ stock_actual: itemInv.stock_actual + cantidadDevolver }).eq('tipo', registro.tipo_comida);
                    toast.info(`Reembolsados ${cantidadDevolver}g al inventario ↩️`);
                  }
                }
              }
-             
              await supabase.from(tabla).delete().eq('id', idReal);
              toast.success('Registro eliminado');
              fetchData(); 
-           } catch (error) {
-             console.error(error);
-             toast.error('Error al borrar');
-           }
+           } catch (error) { console.error(error); toast.error('Error al borrar'); }
         }
       },
     });
@@ -258,19 +318,74 @@ function App() {
       })
     : registros;
 
-  // --- ESCUDO DE SEGURIDAD ---
-  // Si "session" está vacío, mostramos el Login y NO mostramos el resto de la app
-  if (!session) {
-    return <Login />
+  // --- PANTALLA DE SELECCIÓN DE PERFIL ---
+  if (session && !usuarioFamilia) {
+    return (
+      <div className={darkMode ? 'dark' : ''}>
+        <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col items-center justify-center p-6 transition-colors duration-500">
+          
+          <div className="text-center space-y-4 mb-12 animate-fade-in-up flex flex-col items-center">
+            <div className="relative group cursor-default">
+                <div className="absolute -inset-4 bg-orange-500/20 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                <Cat size={80} strokeWidth={1.5} className="text-orange-400 dark:text-orange-400 drop-shadow-lg transform transition-transform duration-300 group-hover:scale-110 group-hover:-rotate-6" fill="rgba(251, 146, 60, 0.2)" />
+                <div className="absolute -top-2 -right-4 animate-bounce">
+                   <Sparkles size={24} className="text-yellow-400" fill="currentColor" />
+                </div>
+            </div>
+            <div>
+              <h1 className="text-4xl md:text-5xl font-black text-slate-800 dark:text-white tracking-tight drop-shadow-sm">¡Hola!</h1>
+              <p className="text-slate-500 dark:text-slate-400 text-lg font-medium mt-2">¿Quién va a alimentar al Michi hoy?</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full max-w-4xl">
+            {/* MATIAS - Maletín */}
+            <button onClick={() => { setUsuarioFamilia('Matias'); localStorage.setItem('michiUser', 'Matias'); }} className="group relative overflow-hidden bg-white dark:bg-slate-800/80 dark:bg-gradient-to-br dark:from-slate-800 dark:to-indigo-900/60 p-8 rounded-[2rem] shadow-xl border border-slate-100 dark:border-indigo-700/50 hover:shadow-2xl hover:border-indigo-500 dark:hover:border-indigo-400 transition-all duration-300 hover:-translate-y-2 hover:shadow-indigo-500/20">
+              <div className="flex flex-col items-center gap-4 relative z-10">
+                <div className="w-24 h-24 bg-indigo-50 dark:bg-indigo-500/20 border border-indigo-100 dark:border-indigo-500/30 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300 shadow-inner grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 text-indigo-500">
+                    <Briefcase size={48} strokeWidth={1.5} />
+                </div>
+                <span className="font-black text-2xl text-slate-700 dark:text-indigo-100 group-hover:text-indigo-600 dark:group-hover:text-white transition-colors">Matias</span>
+                <span className="text-xs font-bold tracking-widest text-slate-400 dark:text-indigo-300/80 uppercase bg-slate-100 dark:bg-slate-900/50 px-3 py-1 rounded-full border border-slate-200 dark:border-indigo-500/30">Admin</span>
+              </div>
+            </button>
+            {/* CECILIA - Corazón */}
+            <button onClick={() => { setUsuarioFamilia('Cecilia'); localStorage.setItem('michiUser', 'Cecilia'); }} className="group relative overflow-hidden bg-white dark:bg-slate-800/80 dark:bg-gradient-to-br dark:from-slate-800 dark:to-pink-900/60 p-8 rounded-[2rem] shadow-xl border border-slate-100 dark:border-pink-700/50 hover:shadow-2xl hover:border-pink-500 dark:hover:border-pink-400 transition-all duration-300 hover:-translate-y-2 hover:shadow-pink-500/20">
+              <div className="flex flex-col items-center gap-4 relative z-10">
+                <div className="w-24 h-24 bg-pink-50 dark:bg-pink-500/20 border border-pink-100 dark:border-pink-500/30 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300 shadow-inner grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 text-pink-500">
+                    <Heart size={48} strokeWidth={1.5} />
+                </div>
+                <span className="font-black text-2xl text-slate-700 dark:text-pink-100 group-hover:text-pink-600 dark:group-hover:text-white transition-colors">Cecilia</span>
+                <span className="text-xs font-bold tracking-widest text-slate-400 dark:text-pink-300/80 uppercase bg-slate-100 dark:bg-slate-900/50 px-3 py-1 rounded-full border border-slate-200 dark:border-pink-500/30">Karen Suprema</span>
+              </div>
+            </button>
+            {/* JAVIERA - Gato */}
+            <button onClick={() => { setUsuarioFamilia('Javiera'); localStorage.setItem('michiUser', 'Javiera'); }} className="group relative overflow-hidden bg-white dark:bg-slate-800/80 dark:bg-gradient-to-br dark:from-slate-800 dark:to-emerald-900/60 p-8 rounded-[2rem] shadow-xl border border-slate-100 dark:border-emerald-700/50 hover:shadow-2xl hover:border-emerald-500 dark:hover:border-emerald-400 transition-all duration-300 hover:-translate-y-2 hover:shadow-emerald-500/20">
+              <div className="flex flex-col items-center gap-4 relative z-10">
+                <div className="w-24 h-24 bg-emerald-50 dark:bg-emerald-500/20 border border-emerald-100 dark:border-emerald-500/30 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300 shadow-inner grayscale opacity-80 group-hover:grayscale-0 group-hover:opacity-100 text-emerald-500">
+                    <Cat size={48} strokeWidth={1.5} />
+                </div>
+                <span className="font-black text-2xl text-slate-700 dark:text-emerald-100 group-hover:text-emerald-600 dark:group-hover:text-white transition-colors">Javiera</span>
+                <span className="text-xs font-bold tracking-widest text-slate-400 dark:text-emerald-300/80 uppercase bg-slate-100 dark:bg-slate-900/50 px-3 py-1 rounded-full border border-slate-200 dark:border-emerald-500/30">Cat Lover</span>
+              </div>
+            </button>
+          </div>
+          <div className="absolute top-6 right-6">
+            <button onClick={() => setDarkMode(!darkMode)} className="p-3 rounded-full bg-white dark:bg-slate-800 shadow-lg text-slate-400 hover:text-indigo-500 transition-colors border border-slate-100 dark:border-slate-700">{darkMode ? <Sun size={24} /> : <Moon size={24} />}</button>
+          </div>
+          <p className="mt-12 text-slate-400 text-sm font-medium opacity-60">Michi Tracker v2.4 • Familia Pajarito</p>
+        </div>
+      </div>
+    )
   }
 
-  // Si hay sesión, mostramos la App normal
+  // --- APP PRINCIPAL ---
+  if (!session) return <Login />
+
   return (
     <div className={darkMode ? 'dark' : ''}>
       <div className="min-h-screen bg-slate-50 dark:bg-slate-900 transition-colors p-4 md:p-8 font-sans pb-32"> 
         <Toaster position="top-center" theme={darkMode ? 'dark' : 'light'} />
-        
-        {/* MODALES */}
         {modalComidaAbierto && <ModalComida alCerrar={() => setModalComidaAbierto(false)} alConfirmar={confirmarComida} />}
         {modalInventarioAbierto && <ModalInventario inventario={inventario} alCerrar={() => setModalInventarioAbierto(false)} alRecargar={fetchData} />}
 
@@ -279,18 +394,25 @@ function App() {
             <h1 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Michi Tracker 🐾</h1>
             <p className="text-slate-400 text-xs font-medium">Panel de Control Felino</p>
           </div>
-          <div className="flex gap-2">
-            {/* Botón Inventario */}
+          <div className="flex gap-2 items-center">
             <button onClick={() => setModalInventarioAbierto(true)} className="p-3 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
               <ShoppingBag size={20} />
             </button>
-            
-            {/* Botón Dark Mode */}
             <button onClick={() => setDarkMode(!darkMode)} className="p-3 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-indigo-500 transition-colors">
               {darkMode ? <Sun size={20} /> : <Moon size={20} />}
             </button>
+            
+            {/* --- BOTÓN DE PERFIL HEADER CON "COLORINES" --- */}
+            <button 
+              onClick={() => { setUsuarioFamilia(null); localStorage.removeItem('michiUser'); }} 
+              // AQUI USAMOS LA NUEVA FUNCIÓN DE ESTILOS
+              className={getProfileHeaderStyles()} 
+              title={`Perfil actual: ${usuarioFamilia}. Click para cambiar.`}
+            >
+              {getProfileHeaderIcon()}
+              <span className="hidden md:inline text-sm font-bold text-current">{usuarioFamilia}</span>
+            </button>
 
-            {/* --- AQUÍ VA EL NUEVO BOTÓN DE SALIR --- */}
             <button onClick={cerrarSesion} className="p-3 rounded-2xl bg-white dark:bg-slate-800 shadow-sm border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors" title="Cerrar Sesión">
               <LogOut size={20} />
             </button>
@@ -302,17 +424,17 @@ function App() {
           <div className="md:col-span-5 space-y-6">
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              
               <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col items-center justify-center relative overflow-hidden h-40">
                   <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-50 dark:bg-indigo-900/20 rounded-bl-full -mr-4 -mt-4"></div>
                   <span className="text-4xl font-black text-indigo-600 dark:text-indigo-400 z-10">{comidasHoy}</span>
                   <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-1 z-10">Comidas Hoy</span>
               </div>
 
+              {/* TARJETA RESUMEN INVENTARIO (LISTA VERTICAL CON ICONOS GRISES) */}
               <div className="bg-white dark:bg-slate-800 p-5 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 flex flex-col justify-center h-40 gap-2">
                   <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-700 pb-1">
                      <div className="flex items-center gap-2">
-                        <span className="text-base">🍪</span>
+                        <Cookie size={16} className="text-slate-400 dark:text-slate-500" />
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Pellet</span>
                      </div>
                      <span className="text-sm font-black text-slate-700 dark:text-slate-200">
@@ -321,7 +443,7 @@ function App() {
                   </div>
                   <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-700 pb-1">
                      <div className="flex items-center gap-2">
-                        <span className="text-base">🥫</span>
+                        <Beef size={16} className="text-slate-400 dark:text-slate-500" />
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Húmeda</span>
                      </div>
                      <span className="text-sm font-black text-slate-700 dark:text-slate-200">
@@ -330,7 +452,7 @@ function App() {
                   </div>
                   <div className="flex items-center justify-between">
                      <div className="flex items-center gap-2">
-                        <span className="text-base">🍬</span>
+                        <Candy size={16} className="text-slate-400 dark:text-slate-500" />
                         <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Churu</span>
                      </div>
                      <span className="text-sm font-black text-slate-700 dark:text-slate-200">
@@ -342,7 +464,7 @@ function App() {
 
             <div className={`p-5 rounded-3xl shadow-sm border flex flex-col items-center justify-center transition-all ${estadoArenero.color}`}>
                   <div className="flex items-center gap-3">
-                    <span className="text-3xl">{estadoArenero.icono}</span>
+                    <span className="grayscale">{estadoArenero.icono}</span>
                     <div className="flex flex-col text-left">
                         <span className="text-[10px] font-bold uppercase tracking-widest opacity-60">Estado Arenero</span>
                         <span className="text-lg font-black uppercase tracking-widest opacity-90">{estadoArenero.texto}</span>
@@ -351,18 +473,14 @@ function App() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <BotonGato texto="Comida" emoji="🍖" tipo="primario" alPresionar={() => clickBotonPrincipal('Comida')} />
-              <BotonGato texto="Arenero" emoji="💩" tipo="secundario" alPresionar={() => clickBotonPrincipal('Arenero')} />
+              <BotonGato texto="Comida" icono={<Utensils size={28} strokeWidth={2.5} />} tipo="primario" alPresionar={() => clickBotonPrincipal('Comida')} />
+              <BotonGato texto="Arenero" icono={<Shovel size={28} strokeWidth={2.5} />} tipo="secundario" alPresionar={() => clickBotonPrincipal('Arenero')} />
             </div>
 
             <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-sm border border-slate-100 dark:border-slate-700 p-2">
               <div className="flex justify-between items-center p-4 pb-2">
-                <h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest">
-                  {fechaFiltro ? 'Hoy / Selección' : 'Reciente'}
-                </h2>
-                {fechaFiltro && (
-                  <button onClick={() => setFechaFiltro(null)} className="text-xs text-indigo-500 font-bold hover:underline">Ver todo</button>
-                )}
+                <h2 className="text-slate-400 text-xs font-bold uppercase tracking-widest">{fechaFiltro ? 'Hoy / Selección' : 'Reciente'}</h2>
+                {fechaFiltro && (<button onClick={() => setFechaFiltro(null)} className="text-xs text-indigo-500 font-bold hover:underline">Ver todo</button>)}
               </div>
               <div className="space-y-1 max-h-[400px] overflow-y-auto px-2 custom-scrollbar">
                 {loading ? <p className="text-center text-slate-300 py-4">Cargando...</p> : 
@@ -371,7 +489,7 @@ function App() {
                       <div key={item.id} className="group flex justify-between items-center p-4 hover:bg-slate-50 dark:hover:bg-slate-700/50 rounded-2xl transition-colors">
                         <div className="flex items-center gap-4">
                           <div className={`w-10 h-10 rounded-full flex items-center justify-center text-lg ${item.tipo === 'Comida' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400' : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'}`}>
-                            {item.tipo === 'Comida' ? item.detalle.split(' ')[0] : '✨'}
+                            {getIcono(item.tipo, item.rawTipo)}
                           </div>
                           <div>
                             <p className="font-bold text-slate-700 dark:text-slate-200 text-sm">{item.tipo}</p>

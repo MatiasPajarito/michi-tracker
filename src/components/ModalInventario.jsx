@@ -1,189 +1,170 @@
-import { useState, useEffect } from 'react';
-import { X, ShoppingBag, Plus } from 'lucide-react';
+import { useState } from 'react';
 import { supabase } from '../supabaseClient';
 import { toast } from 'sonner';
+import { X, Cookie, Beef, Candy, PackagePlus, TrendingUp } from 'lucide-react';
 
 export default function ModalInventario({ inventario, alCerrar, alRecargar }) {
-  const [activeTab, setActiveTab] = useState('seca'); // 'seca', 'humeda', 'churu'
-  const [cantidadInput, setCantidadInput] = useState('');
-  const [loading, setLoading] = useState(false);
+    const [activeTab, setActiveTab] = useState('seca'); 
+    const [cantidadInput, setCantidadInput] = useState('');
+    const [cargando, setCargando] = useState(false);
 
-  // --- CONFIGURACIÓN DE TEMAS Y DATOS ---
-  const CONFIG = {
-    seca: {
-      label: 'Pellet',
-      unit: 'KG', // Mostramos Kg visualmente
-      icon: '🍪',
-      divisor: 1000, // Guardamos en gramos, mostramos en Kg
-      steps: [1, 3, 10], // Botones rápidos (+1kg, +3kg...)
-      stepLabels: ['+1 Kg', '+3 Kg', '+10 Kg'],
-      // Estilos de color (Ámbar)
-      color: 'text-amber-500',
-      bgBtn: 'bg-amber-500 hover:bg-amber-600 shadow-amber-200 dark:shadow-amber-900/20',
-      bgTabActive: 'bg-amber-500 text-white',
-      borderFocus: 'focus:border-amber-500 focus:ring-amber-500',
-      lightBg: 'bg-amber-50 dark:bg-amber-900/10'
-    },
-    humeda: {
-      label: 'Húmeda',
-      unit: 'Sobres',
-      icon: '🥫',
-      divisor: 1,
-      steps: [1, 6, 12],
-      stepLabels: ['+1 un', '+6 un', '+12 un'],
-      // Estilos de color (Rosa)
-      color: 'text-rose-500',
-      bgBtn: 'bg-rose-500 hover:bg-rose-600 shadow-rose-200 dark:shadow-rose-900/20',
-      bgTabActive: 'bg-rose-500 text-white',
-      borderFocus: 'focus:border-rose-500 focus:ring-rose-500',
-      lightBg: 'bg-rose-50 dark:bg-rose-900/10'
-    },
-    churu: {
-      label: 'Churu',
-      unit: 'Tubos',
-      icon: '🍬',
-      divisor: 1,
-      steps: [4, 20, 50],
-      stepLabels: ['+4 un', '+20 un', '+50 un'],
-      // Estilos de color (Violeta/Indigo)
-      color: 'text-violet-500',
-      bgBtn: 'bg-violet-500 hover:bg-violet-600 shadow-violet-200 dark:shadow-violet-900/20',
-      bgTabActive: 'bg-violet-500 text-white',
-      borderFocus: 'focus:border-violet-500 focus:ring-violet-500',
-      lightBg: 'bg-violet-50 dark:bg-violet-900/10'
-    }
-  };
+    const config = {
+        seca: {
+            color: 'text-amber-500',
+            bg: 'bg-amber-500',
+            border: 'border-amber-500',
+            shadow: 'shadow-amber-500/20',
+            label: 'PELLET',
+            unidad: 'g',
+            icono: <Cookie size={32} className="text-amber-500" />,
+            quickAddLabel: '+1 Saco (8kg)',
+            quickAddValue: 8000
+        },
+        humeda: {
+            color: 'text-pink-500',
+            bg: 'bg-pink-500',
+            border: 'border-pink-500',
+            shadow: 'shadow-pink-500/20',
+            label: 'HÚMEDA',
+            unidad: 'un',
+            icono: <Beef size={32} className="text-pink-500" />,
+            quickAddLabel: '+1 Caja (12un)',
+            quickAddValue: 12
+        },
+        churu: {
+            color: 'text-purple-500',
+            bg: 'bg-purple-500',
+            border: 'border-purple-500',
+            shadow: 'shadow-purple-500/20',
+            label: 'CHURU',
+            unidad: 'un',
+            icono: <Candy size={32} className="text-purple-500" />,
+            quickAddLabel: '+1 Frasco (20un)',
+            quickAddValue: 20
+        }
+    };
 
-  const currentTheme = CONFIG[activeTab];
+    const actual = config[activeTab];
+    const itemActualDb = inventario.find(i => i.tipo === activeTab);
+    const stockActual = itemActualDb?.stock_actual || 0;
 
-  // Obtener stock actual del inventario
-  const itemActual = inventario.find(i => i.tipo === activeTab);
-  const stockActual = itemActual ? itemActual.stock_actual : 0;
-  
-  // Cálculo visual (Gramo -> Kg si es pellet)
-  const stockVisual = (stockActual / currentTheme.divisor).toFixed(activeTab === 'seca' ? 2 : 0);
+    const handleUpdate = async () => {
+        const cantidadAgregar = parseInt(cantidadInput);
+        if (!cantidadAgregar || cantidadAgregar <= 0) {
+            toast.error("Ingresa una cantidad válida");
+            return;
+        }
 
-  const handleAgregar = async (cantidad) => {
-    if (!cantidad || cantidad <= 0) return;
-    setLoading(true);
+        setCargando(true);
+        const nuevoStock = stockActual + cantidadAgregar;
 
-    try {
-      // Si es pellet, convertimos Kg (input) a Gramos (base de datos)
-      const cantidadReal = cantidad * currentTheme.divisor;
-      const nuevoTotal = (itemActual ? itemActual.stock_actual : 0) + cantidadReal;
+        try {
+            const { error } = await supabase
+                .from('inventario')
+                .update({ stock_actual: nuevoStock })
+                .eq('tipo', activeTab);
 
-      // Actualizar en Supabase
-      const { error } = await supabase
-        .from('inventario')
-        .update({ stock_actual: nuevoTotal })
-        .eq('tipo', activeTab);
+            if (error) throw error;
 
-      if (error) throw error;
+            toast.success(`¡Stock actualizado! Nuevo total: ${nuevoStock}${actual.unidad}`);
+            setCantidadInput('');
+            alRecargar(); 
+            alCerrar();
+        } catch (error) {
+            toast.error('Error al actualizar: ' + error.message);
+        } finally {
+            setCargando(false);
+        }
+    };
 
-      toast.success(`Stock actualizado: +${cantidad} ${currentTheme.unit}`);
-      setCantidadInput('');
-      alRecargar(); // Recargar datos en la App
-    } catch (e) {
-      console.error(e);
-      toast.error('Error al actualizar stock');
-    } finally {
-      setLoading(false);
-    }
-  };
+    return (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in">
+            {/* CAJA PRINCIPAL: Blanco en día, Oscuro en noche */}
+            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden relative transition-colors duration-300">
+                
+                {/* Header */}
+                <div className="p-6 pb-2 flex justify-between items-center">
+                    <div>
+                        <h2 className="text-2xl font-black text-slate-800 dark:text-white tracking-tight">Despensa</h2>
+                        <p className="text-slate-400 text-xs font-medium uppercase tracking-wider">Reponer Stock</p>
+                    </div>
+                    <button onClick={alCerrar} className="text-slate-400 hover:text-slate-600 dark:hover:text-white transition-colors">
+                        <X size={24} />
+                    </button>
+                </div>
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 transition-all">
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100 dark:border-slate-800 flex flex-col max-h-[90vh]">
-        
-        {/* --- HEADER --- */}
-        <div className="p-6 pb-2 flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-xl ${currentTheme.lightBg}`}>
-               <ShoppingBag className={`w-5 h-5 ${currentTheme.color}`} />
+                {/* Tabs de Navegación */}
+                <div className="px-6 flex gap-2 mt-4">
+                    {['seca', 'humeda', 'churu'].map((t) => (
+                        <button
+                            key={t}
+                            onClick={() => { setActiveTab(t); setCantidadInput(''); }}
+                            className={`flex-1 py-2 rounded-xl text-xs font-bold uppercase tracking-widest transition-all border ${
+                                activeTab === t 
+                                    ? `${config[t].bg} text-white border-transparent shadow-lg ${config[t].shadow}` 
+                                    : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-500 dark:border-slate-700 dark:hover:bg-slate-700'
+                            }`}
+                        >
+                            {config[t].label}
+                        </button>
+                    ))}
+                </div>
+
+                {/* VISUALIZADOR GIGANTE */}
+                <div className="py-8 flex flex-col items-center justify-center animate-pulse-slow">
+                   <p className="text-slate-400 dark:text-slate-500 text-xs font-bold uppercase tracking-widest mb-2">Stock Actual</p>
+                   <span className={`text-5xl font-black ${actual.color} drop-shadow-sm transition-colors duration-300 flex items-baseline gap-1`}>
+                     {stockActual}
+                     <span className="text-xl text-slate-400 dark:text-slate-500 font-bold uppercase">{actual.unidad}</span>
+                   </span>
+                   <div className="mt-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-full border border-slate-100 dark:border-slate-700/50">
+                     {actual.icono}
+                   </div>
+                </div>
+
+                {/* Sección de Ingreso */}
+                <div className="px-6 pb-6 space-y-4">
+                    <div className="flex items-center gap-2 pb-2 border-b border-slate-100 dark:border-slate-800">
+                        <TrendingUp size={18} className={actual.color} />
+                        <p className="text-slate-400 text-sm font-bold uppercase">Agregar Cantidad</p>
+                    </div>
+                    
+                    <div className="flex gap-3">
+                        {/* Input Numérico Adaptable */}
+                        <div className="relative flex-1">
+                            <input 
+                                type="number" 
+                                value={cantidadInput}
+                                onChange={(e) => setCantidadInput(e.target.value)}
+                                placeholder="Ej: 500"
+                                className="w-full bg-slate-50 text-slate-800 border-slate-200 dark:bg-slate-800 dark:text-white dark:border-slate-700 font-bold text-lg py-3 pl-4 pr-12 rounded-2xl border focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600"
+                            />
+                            <span className="absolute right-4 top-4 text-slate-400 dark:text-slate-500 font-bold text-sm uppercase">{actual.unidad}</span>
+                        </div>
+                        
+                        {/* Botón de Atajo Adaptable */}
+                        <button 
+                            onClick={() => setCantidadInput(actual.quickAddValue.toString())}
+                            className={`px-4 rounded-2xl font-bold text-sm border transition-all flex flex-col items-center justify-center gap-1 active:scale-95 ${actual.border} text-slate-600 bg-slate-50 hover:bg-slate-100 dark:text-white dark:bg-slate-800 dark:hover:bg-slate-700`}
+                        >
+                            <PackagePlus size={16} className={actual.color} />
+                            <span className="text-[10px]">{actual.quickAddLabel}</span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* Botón Confirmar */}
+                <div className="p-6 pt-0">
+                    <button 
+                        onClick={handleUpdate}
+                        disabled={cargando || !cantidadInput}
+                        className={`w-full py-4 rounded-2xl font-black text-lg text-white shadow-lg transition-transform active:scale-95 flex items-center justify-center gap-2 ${actual.bg} ${actual.shadow} disabled:opacity-50 disabled:pointer-events-none`}
+                    >
+                        {cargando ? 'Actualizando...' : 'Confirmar Stock 📦'}
+                    </button>
+                </div>
+
             </div>
-            <div>
-              <h2 className="text-xl font-black text-slate-800 dark:text-white">Despensa</h2>
-              <p className="text-xs text-slate-400 font-medium">Gestión de Stock</p>
-            </div>
-          </div>
-          <button onClick={alCerrar} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors">
-            <X size={20} />
-          </button>
         </div>
-
-        {/* --- TABS --- */}
-        <div className="px-6 py-2">
-          <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl">
-            {Object.keys(CONFIG).map((key) => (
-              <button
-                key={key}
-                onClick={() => setActiveTab(key)}
-                className={`flex-1 py-2 text-xs font-bold rounded-xl transition-all duration-300 ${
-                  activeTab === key 
-                    ? CONFIG[key].bgTabActive + ' shadow-sm' 
-                    : 'text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200'
-                }`}
-              >
-                {CONFIG[key].label.toUpperCase()}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* --- VISUALIZADOR GIGANTE --- */}
-        <div className="flex-1 flex flex-col items-center justify-center py-8 min-h-[180px]">
-          <div className="text-center space-y-2 animate-in fade-in zoom-in duration-300" key={activeTab}>
-            <div className="flex items-baseline justify-center gap-1">
-               <span className="text-6xl font-black text-slate-800 dark:text-white tracking-tighter">
-                 {stockVisual}
-               </span>
-               <span className={`text-lg font-bold uppercase ${currentTheme.color} opacity-80`}>
-                 {currentTheme.unit}
-               </span>
-            </div>
-            <div className="text-5xl drop-shadow-md filter">{currentTheme.icon}</div>
-          </div>
-        </div>
-
-        {/* --- ZONA DE CARGA --- */}
-        <div className="bg-slate-50 dark:bg-slate-800/50 p-6 space-y-4 border-t border-slate-100 dark:border-slate-800">
-          <div className="flex items-center gap-2 mb-2">
-            <Plus size={14} className="text-slate-400" />
-            <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Agregar Compra</span>
-          </div>
-
-          <div className="flex gap-3">
-            <input
-              type="number"
-              value={cantidadInput}
-              onChange={(e) => setCantidadInput(e.target.value)}
-              placeholder="0"
-              className={`w-full bg-white dark:bg-slate-800 text-slate-800 dark:text-white border border-slate-200 dark:border-slate-700 rounded-2xl px-4 py-3 font-bold outline-none transition-all ${currentTheme.borderFocus}`}
-            />
-            <button 
-              onClick={() => handleAgregar(parseFloat(cantidadInput))}
-              disabled={loading || !cantidadInput}
-              className={`px-6 rounded-2xl font-bold text-white shadow-lg transform active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed ${currentTheme.bgBtn}`}
-            >
-              {loading ? '...' : 'Cargar'}
-            </button>
-          </div>
-
-          {/* BOTONES RÁPIDOS */}
-          <div className="grid grid-cols-3 gap-3 pt-2">
-            {currentTheme.steps.map((step, index) => (
-              <button
-                key={step}
-                onClick={() => handleAgregar(step)}
-                className="py-2 px-1 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-bold hover:border-slate-400 dark:hover:border-slate-500 transition-colors"
-              >
-                {currentTheme.stepLabels[index]}
-              </button>
-            ))}
-          </div>
-        </div>
-
-      </div>
-    </div>
-  );
+    );
 }

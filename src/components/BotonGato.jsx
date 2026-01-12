@@ -1,24 +1,39 @@
-function BotonGato({ texto, emoji, tipo, alPresionar }) {
-  
-  // CAMBIO: Ahora ambos usan fondos suaves ("50") en lugar de colores sólidos.
-  // Esto hace que se vean mucho más integrados y "minimalistas".
-  const estilos = tipo === 'primario'
-    ? 'bg-indigo-50 text-indigo-600 border-indigo-100 hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 dark:border-indigo-800/50' 
-    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-400 dark:border-slate-700';
+import React from 'react';
+
+export default function BotonGato({ texto, icono, tipo, alPresionar }) {
+  // Definimos colores según si es Primario (Comida) o Secundario (Arenero)
+  const esPrimario = tipo === 'primario';
 
   return (
-    <button 
+    <button
       onClick={alPresionar}
-      className={`${estilos} border w-full py-5 rounded-2xl transition-all duration-200 active:scale-95 flex flex-col items-center gap-2 group shadow-sm`}
+      className={`
+        relative w-full p-6 rounded-[2rem] flex flex-col items-center justify-center gap-3 
+        transition-all duration-300 active:scale-95 shadow-sm border group
+        ${esPrimario 
+          // Estilo Comida (Indigo/Violeta sutil)
+          ? 'bg-white border-indigo-100 hover:border-indigo-300 hover:shadow-indigo-500/10 dark:bg-slate-800 dark:border-indigo-900/30' 
+          // Estilo Arenero (Gris/Slate sutil)
+          : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-slate-500/10 dark:bg-slate-800 dark:border-slate-700'
+        }
+      `}
     >
-      <span className="text-3xl group-hover:scale-110 transition-transform duration-300 drop-shadow-sm filter">
-        {emoji}
-      </span>
-      <span className="text-[10px] font-bold uppercase tracking-widest opacity-90">
+      {/* Círculo del Icono */}
+      <div className={`
+        w-14 h-14 rounded-full flex items-center justify-center transition-transform duration-300 group-hover:scale-110
+        ${esPrimario
+          ? 'bg-indigo-50 text-indigo-500 dark:bg-indigo-500/10 dark:text-indigo-400'
+          : 'bg-slate-100 text-slate-500 dark:bg-slate-700/50 dark:text-slate-400'
+        }
+      `}>
+        {/* Aquí renderizamos el icono que nos pasan (ej: <Utensils />) */}
+        {icono}
+      </div>
+
+      {/* Texto del Botón */}
+      <span className={`font-black text-lg tracking-tight ${esPrimario ? 'text-slate-700 dark:text-indigo-100' : 'text-slate-600 dark:text-slate-300'}`}>
         {texto}
       </span>
     </button>
   );
 }
-
-export default BotonGato;
